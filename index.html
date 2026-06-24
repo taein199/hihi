@@ -3,65 +3,74 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>🍁 태인이의 술래잡기 게임 🍁</title>
+    <title>태인이의 술래잡기 게임</title>
+    <!-- PeerJS 및 QRCode 라이브러리 -->
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <style>
-        /* 아늑한 갈색 및 베이지 톤 글로벌 스타일 */
-        body { margin: 0; padding: 0; background-color: #f4ebd0; color: #5c4033; font-family: 'Malgun Gothic', sans-serif; overflow: hidden; user-select: none; touch-action: none; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; }
-        button { cursor: pointer; outline: none; border: none; font-weight: bold; font-family: 'Malgun Gothic', sans-serif; }
+        /* 칠흑 같은 어둠 최적화 스타일 */
+        body { margin: 0; padding: 0; background-color: #000; color: #fff; font-family: 'Malgun Gothic', sans-serif; overflow: hidden; user-select: none; touch-action: none; -webkit-touch-callout: none; }
+        button { cursor: pointer; outline: none; border: none; font-weight: bold; font-family: 'Malgun Gothic', sans-serif; -webkit-tap-highlight-color: transparent; }
         
         /* 1. 호스트 화면 스타일 */
-        #host-init { text-align: center; z-index: 20; }
-        #host-init button { padding: 20px 40px; font-size: 24px; background: #8b5a2b; color: white; border-radius: 15px; transition: 0.3s; box-shadow: 0 5px 15px rgba(139,90,43,0.4); }
-        #host-init button:hover { background: #6d441f; transform: scale(1.02); }
+        #host-init { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; z-index: 20; width: 100%; }
+        #host-init button { padding: 20px 40px; font-size: 24px; background: #8a0303; color: #fff; border-radius: 8px; border: 2px solid #ff0000; transition: 0.3s; box-shadow: 0 0 20px rgba(255,0,0,0.5); }
+        #host-init button:hover { background: #500000; transform: scale(1.05); }
         
-        #host-lobby { display: none; text-align: center; z-index: 10; width: 100%; height: 100%; background: radial-gradient(circle, #e6ccb2 0%, #b08968 100%); }
-        #host-lobby h1 { margin-top: 60px; font-size: 42px; color: #4e342e; text-shadow: 1px 1px 2px rgba(255,255,255,0.6); }
-        #qr-container { background: white; padding: 15px; margin: 30px auto; display: inline-block; box-shadow: 0 10px 25px rgba(92,64,51,0.2); border-radius: 15px; }
-        .player-status { font-size: 24px; margin: 15px; color: #3e2723; }
-        .ready { color: #2e7d32; text-shadow: 0 0 5px rgba(46,125,50,0.3); }
-        .wait { color: #795548; }
+        #host-lobby { display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; text-align: center; z-index: 10; background: radial-gradient(circle, #1a0505 0%, #000 80%); }
+        #host-lobby h1 { margin-top: 50px; font-size: 50px; color: #ff0000; text-shadow: 0 0 10px #ff0000; letter-spacing: 5px; }
+        #host-lobby p { color: #888; font-size: 18px; }
+        #qr-container { background: #fff; padding: 15px; margin: 30px auto; display: inline-block; border: 4px solid #8a0303; border-radius: 5px; }
+        .player-status { font-size: 24px; margin: 15px; color: #aaa; }
+        .ready { color: #ff0000; font-weight: bold; text-shadow: 0 0 5px #ff0000; }
+        .wait { color: #555; }
 
-        #host-game { display: none; position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; background: #eddcd2; }
-        #timer-display { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); font-size: 48px; color: #4e342e; font-weight: bold; text-shadow: 0 2px 5px rgba(255,255,255,0.8); z-index: 5; }
-         Tar계-canvas { display: block; width: 100%; height: 100%; }
+        #host-game { display: none; position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; background: radial-gradient(circle, #111 0%, #000 100%); overflow: hidden; }
+        #timer-display { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); font-size: 54px; color: #ff3333; font-weight: bold; text-shadow: 0 0 15px #ff0000; z-index: 5; }
+        #game-canvas { display: block; width: 100%; height: 100%; }
 
-        /* 2. 클라이언트 화면 스타일 */
-        #client-ui { display: none; width: 100%; height: 100%; flex-direction: column; }
+        /* 2. 클라이언트 컨트롤러 화면 스타일 (모바일 레이아웃 완전 수정) */
+        #client-ui { display: none; width: 100vw; height: 100vh; flex-direction: column; background: #000; position: absolute; top:0; left:0; }
         
-        /* 로비 상태 */
-        #client-lobby { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #ddb892; }
-        #client-lobby h2 { font-size: 26px; margin-bottom: 30px; text-align: center; color: #4e342e; line-height: 1.5; }
-        #btn-ready { padding: 20px 50px; font-size: 24px; background: #7f5539; color: white; border-radius: 50px; transition: 0.3s; box-shadow: 0 5px 10px rgba(0,0,0,0.15); }
-        #btn-ready.active { background: #52b788; box-shadow: 0 0 20px rgba(82,183,136,0.5); }
+        #client-lobby { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        #client-lobby h2 { font-size: 22px; margin-bottom: 30px; text-align: center; color: #ddd; line-height: 1.6; padding: 0 20px; }
+        #btn-ready { padding: 20px 60px; font-size: 26px; background: #222; color: #fff; border-radius: 12px; border: 2px solid #555; transition: 0.3s; }
+        #btn-ready.active { background: #8a0303; border-color: #ff0000; box-shadow: 0 0 20px rgba(255,0,0,0.8); }
 
-        /* 인게임 컨트롤러 */
-        #client-game { display: none; flex: 1; background: #b08968; position: relative; }
-        #joystick-area { position: absolute; bottom: 40px; left: 40px; width: 140px; height: 140px; background: rgba(255,255,255,0.25); border-radius: 50%; border: 3px solid #7f5539; }
-        #stick { width: 60px; height: 60px; background: #fff; border-radius: 50%; position: absolute; top: 40px; left: 40px; box-shadow: 0 3px 8px rgba(0,0,0,0.2); }
+        #client-game { display: none; width: 100%; height: 100%; position: relative; background: #050505; overflow: hidden; }
         
-        #skill-area { position: absolute; bottom: 30px; right: 30px; display: grid; grid-template-columns: repeat(2, 75px); gap: 15px; }
-        .skill-btn { width: 75px; height: 75px; border-radius: 50%; background: #9c6644; color: white; font-size: 22px; box-shadow: 0 5px 10px rgba(0,0,0,0.2); position: relative; overflow: hidden; }
-        .skill-btn:active { transform: scale(0.92); }
-        .skill-btn .cooldown-overlay { position: absolute; bottom: 0; left: 0; width: 100%; height: 0%; background: rgba(0,0,0,0.5); transition: height 0.1s linear; }
+        /* 조이스틱 (좌측 하단) */
+        #joystick-area { position: absolute; bottom: 8%; left: 5%; width: 150px; height: 150px; background: rgba(255,255,255,0.05); border-radius: 50%; border: 2px solid #333; z-index: 10; }
+        #stick { width: 60px; height: 60px; background: #555; border-radius: 50%; position: absolute; top: 45px; left: 45px; box-shadow: inset 0 0 10px rgba(0,0,0,0.8); }
+        
+        /* 달리기 버튼 (조이스틱 바로 위) */
+        #btn-sprint { position: absolute; bottom: calc(8% + 170px); left: 8%; width: 90px; height: 60px; border-radius: 30px; background: rgba(200, 200, 200, 0.1); border: 2px solid #888; color: #fff; font-size: 16px; z-index: 10; transition: 0.1s; }
+        #btn-sprint.active { background: rgba(255, 0, 0, 0.4); border-color: #ff0000; color: #ff0000; box-shadow: 0 0 15px rgba(255,0,0,0.5); }
+
+        /* 스킬 버튼 영역 (우측 하단 - 잘리지 않게 플렉스로 배치) */
+        #skill-area { position: absolute; bottom: 8%; right: 3%; width: 200px; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px; z-index: 10; }
+        .skill-btn { width: 70px; height: 70px; border-radius: 50%; background: rgba(20, 20, 20, 0.8); border: 2px solid #444; color: #fff; font-size: 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.8); position: relative; overflow: hidden; }
+        .skill-btn:active { transform: scale(0.9); border-color: #ff0000; }
+        .skill-btn .cooldown-overlay { position: absolute; bottom: 0; left: 0; width: 100%; height: 0%; background: rgba(255,0,0,0.6); transition: height 0.1s linear; }
+        .skill-name { font-size: 10px; display: block; margin-top: 2px; color: #aaa; pointer-events: none; }
+        
+        /* 격노 전용 버튼 스타일 */
+        #btn-F { width: 150px; border-radius: 20px; background: rgba(138, 3, 3, 0.5); border-color: #ff0000; margin-top: 10px; }
     </style>
 </head>
 <body>
 
-    <audio id="bgm" src="bgm.mp3" loop preload="auto"></audio>
-
+    <!-- ================= 호스트 UI (PC/태블릿) ================= -->
     <div id="host-init">
-        <h2>친구와 함께 즐기는 숨바꼭질</h2>
-        <button onclick="initHost()">아늑한 숲속 로비 만들기</button>
+        <h2 style="color:#aaa; margin-bottom: 20px;">어둠 속에 숨은 살인마를 피하십시오.</h2>
+        <button onclick="initHost()">방 생성하기</button>
     </div>
 
     <div id="host-lobby">
-        <h1>🍁 숲속 숨바꼭질 로비 🍁</h1>
-        <p style="color:#6d441f; font-size: 18px;">스마트폰 카메라로 QR코드를 스캔해 참여하세요!</p>
+        <p>생존자와 살인마가 연결되기를 기다리고 있습니다...</p>
         <div id="qr-container"></div>
-        <div class="player-status">친구 1: <span id="p1-status" class="wait">오기를 기다리는 중...</span></div>
-        <div class="player-status">친구 2: <span id="p2-status" class="wait">오기를 기다리는 중...</span></div>
+        <div class="player-status">Player 1: <span id="p1-status" class="wait">연결 대기 중...</span></div>
+        <div class="player-status">Player 2: <span id="p2-status" class="wait">연결 대기 중...</span></div>
     </div>
 
     <div id="host-game">
@@ -69,18 +78,21 @@
         <canvas id="game-canvas"></canvas>
     </div>
 
+    <!-- ================= 클라이언트 UI (스마트폰 컨트롤러) ================= -->
     <div id="client-ui">
         <div id="client-lobby">
-            <h2 id="role-text">숲속 역할을 정하고 있어요...</h2>
-            <button id="btn-ready">놀이 시작 준비!</button>
+            <h2 id="role-text">역할을 배정하고 있습니다...</h2>
+            <button id="btn-ready">준비</button>
         </div>
         <div id="client-game">
             <div id="joystick-area"><div id="stick"></div></div>
+            <button id="btn-sprint">달리기</button>
+            
             <div id="skill-area">
-                <button class="skill-btn" id="btn-Q" onclick="useSkill('Q')">Q<div class="cooldown-overlay" id="cd-Q"></div></button>
-                <button class="skill-btn" id="btn-E" onclick="useSkill('E')">E<div class="cooldown-overlay" id="cd-E"></div></button>
-                <button class="skill-btn" id="btn-R" onclick="useSkill('R')">R<div class="cooldown-overlay" id="cd-R"></div></button>
-                <button class="skill-btn" id="btn-F" onclick="useSkill('F')" style="display:none;">F<div class="cooldown-overlay" id="cd-F"></div></button>
+                <button class="skill-btn" id="btn-Q" onclick="useSkill('Q')">Q<span class="skill-name" id="name-Q">스킬1</span><div class="cooldown-overlay" id="cd-Q"></div></button>
+                <button class="skill-btn" id="btn-E" onclick="useSkill('E')">E<span class="skill-name" id="name-E">스킬2</span><div class="cooldown-overlay" id="cd-E"></div></button>
+                <button class="skill-btn" id="btn-R" onclick="useSkill('R')">R<span class="skill-name" id="name-R">스킬3</span><div class="cooldown-overlay" id="cd-R"></div></button>
+                <button class="skill-btn" id="btn-F" onclick="useSkill('F')" style="display:none;">F<span class="skill-name">격노한 발걸음</span><div class="cooldown-overlay" id="cd-F"></div></button>
             </div>
         </div>
     </div>
@@ -90,7 +102,7 @@
         const hostIdToJoin = urlParams.get('join');
 
         // =========================================================================
-        // 1. 클라이언트 (조이스틱 스마트폰) 로직
+        // 1. 클라이언트 (스마트폰 컨트롤러) 로직
         // =========================================================================
         if (hostIdToJoin) {
             document.getElementById('client-ui').style.display = 'flex';
@@ -98,10 +110,9 @@
 
             const peer = new Peer();
             let conn;
-            let myRole = ''; // 'killer' (술래 곰돌이) 또는 'survivor' (다람쥐 친구)
+            let myRole = ''; 
             let isReady = false;
 
-            // 스킬 쿨타임 수치 매핑
             const skills = {
                 killer: { Q: 1.9, E: 18.5, R: 32, F: 30 },
                 survivor: { Q: 27, E: 40, R: 60 }
@@ -114,11 +125,19 @@
                         if (data.type === 'assign-role') {
                             myRole = data.role;
                             const roleText = document.getElementById('role-text');
+                            
                             if (myRole === 'killer') {
-                                roleText.innerHTML = "당신은 <span style='color:#5c4033'>🐻 술래 곰돌이</span> 입니다!<br>목표: 다람쥐 친구를 꽉 안아주기";
+                                roleText.innerHTML = "<span style='color:#ff0000; font-size:28px; text-shadow:0 0 10px #ff0000;'>Slasher (살인마)</span><br><br>투박한 하키 마스크로 얼굴을 감춘 자.<br>스태미나 110. 피로 물든 마체테를 휘두르십시오.";
+                                document.getElementById('name-Q').innerText = "휘두르기";
+                                document.getElementById('name-E').innerText = "참수";
+                                document.getElementById('name-R').innerText = "상처/전기톱";
                                 document.getElementById('btn-F').style.display = 'block'; 
+                                document.body.style.boxShadow = "inset 0 0 50px rgba(255,0,0,0.3)";
                             } else {
-                                roleText.innerHTML = "당신은 <span style='color:#d97706'>🐿️ 다람쥐 친구 (게스트 1337)</span> 입니다!<br>목표: 73초 동안 장난 피하기";
+                                roleText.innerHTML = "<span style='color:#aaa; font-size:28px;'>Guest 1337 (생존자)</span><br><br>칠흑 같은 어둠 속.<br>스태미나 100. 73초 동안 살인마의 추격을 피하십시오.";
+                                document.getElementById('name-Q').innerText = "방어";
+                                document.getElementById('name-E').innerText = "돌진";
+                                document.getElementById('name-R').innerText = "펀치";
                             }
                         } else if (data.type === 'start-game') {
                             document.getElementById('client-lobby').style.display = 'none';
@@ -128,20 +147,20 @@
                 });
             });
 
-            // 준비완료 토글 버튼
+            // 준비 버튼
             document.getElementById('btn-ready').addEventListener('click', function() {
                 if(!conn || !conn.open) return;
                 isReady = !isReady;
                 this.classList.toggle('active');
-                this.innerText = isReady ? "준비 완료!" : "놀이 시작 준비!";
+                this.innerText = isReady ? "준비 완료!" : "준비";
                 conn.send({ type: 'ready', state: isReady });
             });
 
-            // 부드러운 아날로그 조이스틱 터치 연산
+            // 조이스틱
             const jArea = document.getElementById('joystick-area');
             const stick = document.getElementById('stick');
             let isDragging = false, startX, startY;
-            const maxRadius = 40;
+            const maxRadius = 45;
 
             jArea.addEventListener('touchstart', (e) => {
                 isDragging = true;
@@ -166,7 +185,20 @@
                 if (conn && conn.open) conn.send({ type: 'move', x: 0, y: 0 });
             });
 
-            // 스킬 트리거 인터페이스
+            // 달리기 버튼
+            const btnSprint = document.getElementById('btn-sprint');
+            btnSprint.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                if(conn && conn.open) conn.send({ type: 'sprint', state: true });
+                btnSprint.classList.add('active');
+            });
+            btnSprint.addEventListener('touchend', (e) => {
+                e.preventDefault();
+                if(conn && conn.open) conn.send({ type: 'sprint', state: false });
+                btnSprint.classList.remove('active');
+            });
+
+            // 스킬 버튼
             window.useSkill = function(key) {
                 if (!conn || !conn.open) return;
                 const cdOverlay = document.getElementById(`cd-${key}`);
@@ -185,27 +217,53 @@
             };
 
         // =========================================================================
-        // 2. 호스트 (메인 모니터/태블릿) 로직
+        // 2. 호스트 (태블릿/모니터 메인 뷰) 로직
         // =========================================================================
         } else {
             let peer;
             let p1Conn = null, p2Conn = null;
             let p1Ready = false, p2Ready = false;
-            let isP1Killer = Math.random() < 0.5; // 반반 확률 배정
+            let isP1Killer = Math.random() < 0.5;
 
             let gameActive = false;
-            let timeRemaining = 73; // 1분 13초 가을 타이머
+            let timeRemaining = 73; // 73초
             
-            // 평화로운 스탯 및 테마 스킨 데이터
+            // Web Audio API (효과음)
+            let audioCtx;
+            function initAudio() {
+                if(!audioCtx) {
+                    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                }
+                if(audioCtx.state === 'suspended') audioCtx.resume();
+            }
+
+            // 고어/타격 사운드 합성
+            function playHitSound() {
+                if(!audioCtx) return;
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.type = 'sawtooth'; // 날카로운 소리
+                osc.frequency.setValueAtTime(150, audioCtx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(30, audioCtx.currentTime + 0.15);
+                gain.gain.setValueAtTime(1, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.15);
+            }
+
+            // 개체 기본 스탯 (스태미나 추가)
             let entities = {
-                killer: { x: 0, y: 0, size: 45, color: '#6f4e37', vx: 0, vy: 0, hp: 100, maxHp: 100, speed: 5.5, state: 'normal', msg: '', msgTimer: 0 }, // 술래 곰돌이
-                survivor: { x: 0, y: 0, size: 32, color: '#e6a15c', vx: 0, vy: 0, hp: 110, maxHp: 110, speed: 5.5, state: 'normal', msg: '', msgTimer: 0 } // 다람쥐 (패시브: 최대체력 +10 반영)
+                killer: { x: 0, y: 0, size: 45, color: '#8a0303', vx: 0, vy: 0, hp: 100, maxHp: 100, stamina: 110, maxStamina: 110, speed: 6.5, state: 'normal', msg: '', msgTimer: 0, bleedTimer: 0, isSprinting: false }, 
+                survivor: { x: 0, y: 0, size: 35, color: '#aaaaaa', vx: 0, vy: 0, hp: 110, maxHp: 110, stamina: 100, maxStamina: 100, speed: 6.5, state: 'normal', msg: '', msgTimer: 0, bleedTimer: 0, isSprinting: false }
             };
 
+            let particles = [];
+            let screenShake = 0;
+
             window.initHost = function() {
-                const bgm = document.getElementById('bgm');
-                bgm.volume = 0.4;
-                bgm.play().then(() => { bgm.pause(); }).catch(e => console.log("CORS 걱정 없는 터치 사전 등록 성공"));
+                initAudio(); // 클릭 시 오디오 초기화
 
                 document.getElementById('host-init').style.display = 'none';
                 document.getElementById('host-lobby').style.display = 'block';
@@ -214,11 +272,10 @@
                 peer.on('open', (id) => {
                     let loc = window.location.href.split('?')[0];
                     if (loc.includes('localhost') || loc.includes('127.0.0.1')) {
-                        const ip = prompt("친구가 폰으로 접속할 수 있게 PC의 내부 IP를 적어주세요. (예: 192.168.0.x)", "192.168.");
+                        const ip = prompt("모바일 접속용 로컬 IP 입력", "192.168.");
                         if (ip) loc = loc.replace(/localhost|127\.0\.0\.1/, ip);
                     }
-                    // 따뜻한 브라운 색상의 QR코드 생성
-                    new QRCode(document.getElementById("qr-container"), { text: `${loc}?join=${id}`, width: 250, height: 250, colorDark : "#5c4033" });
+                    new QRCode(document.getElementById("qr-container"), { text: `${loc}?join=${id}`, width: 220, height: 220, colorDark : "#000000" });
                 });
 
                 peer.on('connection', (conn) => {
@@ -226,11 +283,11 @@
                     conn.on('open', () => {
                         if (!p1Conn) {
                             p1Conn = conn; playerSlot = 'p1';
-                            document.getElementById('p1-status').innerText = "들어옴! (준비 대기 중)";
+                            document.getElementById('p1-status').innerText = "장치 연결됨";
                             conn.send({ type: 'assign-role', role: isP1Killer ? 'killer' : 'survivor' });
                         } else if (!p2Conn) {
                             p2Conn = conn; playerSlot = 'p2';
-                            document.getElementById('p2-status').innerText = "들어옴! (준비 대기 중)";
+                            document.getElementById('p2-status').innerText = "장치 연결됨";
                             conn.send({ type: 'assign-role', role: !isP1Killer ? 'killer' : 'survivor' });
                         }
                     });
@@ -243,7 +300,7 @@
                             if (playerSlot === 'p1') p1Ready = data.state;
                             if (playerSlot === 'p2') p2Ready = data.state;
                             document.getElementById(`${playerSlot}-status`).className = data.state ? 'ready' : 'wait';
-                            document.getElementById(`${playerSlot}-status`).innerText = data.state ? "놀 준비 완료! ✨" : "들어옴! (준비 대기 중)";
+                            document.getElementById(`${playerSlot}-status`).innerText = data.state ? "준비 완료!" : "장치 연결됨";
                             
                             if (p1Ready && p2Ready && !gameActive) startMatch();
                         }
@@ -251,15 +308,11 @@
                         if (!gameActive) return;
 
                         if (data.type === 'move') {
-                            if (target.state === 'stun' || target.state === 'disarm') return;
-                            
-                            let modifier = 1;
-                            if (target.state === 'slow') modifier = 0.5; // 느림 1 디버프
-                            if (role === 'killer' && target.state === 'rage') modifier = 19 / 5.5; // 기본 속도 19 고정 상향 조정
-                            if (role === 'survivor' && target.state === 'blocking') modifier = 0.5; // 방어 중 50% 감속
-
-                            target.vx = data.x * target.speed * modifier;
-                            target.vy = data.y * target.speed * modifier;
+                            target.vx = data.x;
+                            target.vy = data.y;
+                        }
+                        if (data.type === 'sprint') {
+                            target.isSprinting = data.state;
                         }
 
                         if (data.type === 'skill') {
@@ -271,75 +324,84 @@
 
             function showMsg(role, text) {
                 entities[role].msg = text;
-                entities[role].msgTimer = 50; 
+                entities[role].msgTimer = 60;
             }
 
             function getDist(p1, p2) {
                 return Math.hypot(p1.x - p2.x, p1.y - p2.y);
             }
 
-            // 평화로운 놀이 스킬 매커니즘 처리 함수
+            // 피 파티클 생성기
+            function addBlood(x, y) {
+                for(let i=0; i<15; i++) {
+                    particles.push({
+                        x: x, y: y,
+                        vx: (Math.random() - 0.5) * 15,
+                        vy: (Math.random() - 0.5) * 15,
+                        life: 30 + Math.random() * 20
+                    });
+                }
+            }
+
+            // 전투 처리
             function handleCombat(role, key) {
                 const killer = entities.killer;
                 const surv = entities.survivor;
                 const dist = getDist(killer, surv);
-                const playRange = 95;
+                const meleeRange = 100;
 
                 if (role === 'killer') {
                     if (killer.state === 'stun') return;
 
                     if (key === 'Q') {
-                        // 휘두르기 -> 안아주기 | Hug
-                        showMsg('killer', "포근하게 안아주기! 🤗");
-                        // 피격 시 20 점수 차감(데미지) 및 출혈(따뜻함 중첩) 디버프 매칭
-                        if (dist < playRange) applyDamage('survivor', 20);
+                        showMsg('killer', '"그들이 기억하게끔 마드렴!"');
+                        if (dist < meleeRange) {
+                            applyDamage('survivor', 20);
+                            surv.bleedTimer = 180; 
+                        }
                     }
                     else if (key === 'E') {
-                        // 참수 -> 낙엽 날리기 | Leaf Blast
-                        showMsg('killer', "낙엽 날리기! 🍂");
-                        killer.state = 'slow'; setTimeout(()=> { killer.state='normal'; }, 2000); // 슬래셔 느림 1 2초
-                        if (dist < playRange) {
-                            applyDamage('survivor', 20); // 20 피해량
-                            surv.state = 'disarm'; setTimeout(()=> { surv.state='normal'; }, 8000); // 무력함 1 디버프 8초
+                        showMsg('killer', '"숨을 곳은 없단다."');
+                        killer.state = 'slow'; setTimeout(()=> { killer.state='normal'; }, 2000);
+                        if (dist < meleeRange + 30) {
+                            applyDamage('survivor', 20);
+                            surv.state = 'disarm'; setTimeout(()=> { surv.state='normal'; }, 8000);
                         }
                     }
                     else if (key === 'R') {
-                        // 갈라진 상처 -> 도토리 뭉치 투척 | Acorn Shower
-                        showMsg('killer', "도토리 와르르! 🌰");
-                        if (dist < playRange) applyDamage('survivor', 50); // 총 50의 피해량
+                        showMsg('killer', '"너에게는 쉬울 거란다." (전기톱)');
+                        if (dist < meleeRange + 10) applyDamage('survivor', 50);
                     }
                     else if (key === 'F') {
-                        // 격노한 발걸음 -> 신나는 발걸음 | Raging Pace
-                        showMsg('killer', "콧노래 부르며 달리기! 🎵");
+                        showMsg('killer', '"저들을 죽여버리거라!"');
                         killer.state = 'rage';
-                        setTimeout(()=> { if(killer.state==='rage') killer.state='normal'; }, 14000); // 14초 동안 지속
+                        screenShake = 20; // 포효 시 진동
+                        setTimeout(()=> { if(killer.state==='rage') killer.state='normal'; }, 14000);
                     }
                 } 
                 else if (role === 'survivor') {
                     if (surv.state === 'stun' || surv.state === 'disarm') return;
 
                     if (key === 'Q') {
-                        // 방어 -> 웅크리기 | Crouch
-                        showMsg('survivor', "도토리 껍질 속으로! 껍질 방어!");
+                        showMsg('survivor', '"방어!"');
                         surv.state = 'blocking';
-                        setTimeout(()=> { if(surv.state==='blocking') surv.state='normal'; }, 2000); // 2초 유지
+                        setTimeout(()=> { if(surv.state==='blocking') surv.state='normal'; }, 2000);
                     }
                     else if (key === 'E') {
-                        // 돌진 -> 요리조리 대시 | Sprint
-                        showMsg('survivor', "호다닥 돌진! 💨");
-                        surv.x += surv.vx * 12; surv.y += surv.vy * 12;
-                        if (getDist(killer, surv) < playRange) {
-                            applyDamage('killer', 5); // 5의 미미한 밀치기 충격
-                            killer.x += surv.vx * 8; killer.y += surv.vy * 8; // 밀쳐짐
+                        showMsg('survivor', '"돌진!"');
+                        surv.x += surv.vx * 150; surv.y += surv.vy * 150; // 순간 이동기
+                        if (getDist(killer, surv) < meleeRange) {
+                            applyDamage('killer', 5);
+                            killer.x += surv.vx * 50; killer.y += surv.vy * 50;
                         } else {
-                            surv.state = 'slow'; setTimeout(()=> { surv.state='normal'; }, 2000); // 벽꽝/실패 시 느림 2 디버프
+                            surv.state = 'slow'; setTimeout(()=> { surv.state='normal'; }, 2000);
                         }
                     }
                     else if (key === 'R') {
-                        // 펀치 -> 반짝이 딱밤 | Punch
-                        showMsg('survivor', "말랑 펀치! 🐾");
-                        if (dist < playRange) {
-                            killer.state = 'stun'; setTimeout(()=> { killer.state='normal'; }, 2000); // 2초 기절
+                        showMsg('survivor', '"주먹질!"');
+                        if (dist < meleeRange) {
+                            killer.state = 'stun'; setTimeout(()=> { killer.state='normal'; }, 2000);
+                            playHitSound(); // 타격음
                         }
                     }
                 }
@@ -348,9 +410,8 @@
             function applyDamage(targetRole, amount) {
                 const target = entities[targetRole];
                 
-                // 생존자 웅크리기(방어) 성공 판정
                 if (targetRole === 'survivor' && target.state === 'blocking') {
-                    showMsg('survivor', "방어 성공! 체력 +10 🌰");
+                    showMsg('survivor', '방어 성공!');
                     target.maxHp += 10;
                     target.hp += 10;
                     target.state = 'normal';
@@ -358,6 +419,10 @@
                 }
 
                 target.hp -= amount;
+                addBlood(target.x, target.y); // 피 이펙트
+                screenShake = 15; // 화면 진동
+                playHitSound(); // 찢어지는 소리
+
                 if (entities.survivor.hp <= 0) endGame('killer_win');
                 if (entities.killer.hp <= 0) endGame('survivor_win');
             }
@@ -370,17 +435,12 @@
                 if(p1Conn) p1Conn.send({ type: 'start-game' });
                 if(p2Conn) p2Conn.send({ type: 'start-game' });
 
-                // 브라우저 내부 오디오 구동
-                const bgm = document.getElementById('bgm');
-                bgm.currentTime = 0;
-                bgm.play();
-
                 const canvas = document.getElementById('game-canvas');
                 canvas.width = window.innerWidth;
                 canvas.height = window.innerHeight;
                 
-                entities.killer.x = canvas.width * 0.25; entities.killer.y = canvas.height / 2;
-                entities.survivor.x = canvas.width * 0.75; entities.survivor.y = canvas.height / 2;
+                entities.killer.x = canvas.width * 0.2; entities.killer.y = canvas.height / 2;
+                entities.survivor.x = canvas.width * 0.8; entities.survivor.y = canvas.height / 2;
 
                 const timerInterval = setInterval(() => {
                     if (!gameActive) { clearInterval(timerInterval); return; }
@@ -400,26 +460,75 @@
                 const canvas = document.getElementById('game-canvas');
                 const ctx = canvas.getContext('2d');
 
+                // 스크린 쉐이크 적용
+                ctx.save();
+                if (screenShake > 0) {
+                    const dx = (Math.random() - 0.5) * screenShake;
+                    const dy = (Math.random() - 0.5) * screenShake;
+                    ctx.translate(dx, dy);
+                    screenShake -= 1;
+                }
+
+                // 배경 렌더링
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.4)'; // 잔상 효과 (모션 블러)
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.strokeStyle = '#111';
+                ctx.lineWidth = 2;
+                for(let j=0; j<canvas.height; j+=150) { ctx.beginPath(); ctx.moveTo(0, j); ctx.lineTo(canvas.width, j); ctx.stroke(); }
+
+                // 출혈 데미지
+                if (entities.survivor.bleedTimer > 0) {
+                    if (entities.survivor.bleedTimer % 60 === 0) {
+                        entities.survivor.hp -= 2;
+                        addBlood(entities.survivor.x, entities.survivor.y);
+                    }
+                    entities.survivor.bleedTimer--;
+                    if (entities.survivor.hp <= 0) endGame('killer_win');
+                }
+
+                // 상태 업데이트 & 이동
                 ['killer', 'survivor'].forEach(role => {
                     let p = entities[role];
-                    p.x += p.vx; p.y += p.vy;
+                    if (p.state === 'stun' || p.state === 'disarm') return;
+
+                    let baseSpeed = p.speed;
+                    let speedMod = 1;
+
+                    if (p.state === 'slow') speedMod = 0.5;
+                    if (p.state === 'blocking') speedMod = 0.5;
+                    if (role === 'killer' && p.state === 'rage') speedMod = 19 / 6.5; // 속도 19 고정
+
+                    // 달리기 로직 (스태미나 소모 및 회복)
+                    let isMoving = (Math.abs(p.vx) > 0.1 || Math.abs(p.vy) > 0.1);
+                    if (p.isSprinting && p.stamina > 0 && isMoving && p.state !== 'rage') {
+                        speedMod *= 1.6;
+                        p.stamina = Math.max(0, p.stamina - 1); // 스태미나 소모
+                    } else {
+                        p.stamina = Math.min(p.maxStamina, p.stamina + 0.3); // 스태미나 회복
+                    }
+
+                    p.x += p.vx * baseSpeed * speedMod; 
+                    p.y += p.vy * baseSpeed * speedMod;
+
                     if (p.x < p.size) p.x = p.size;
                     if (p.x > canvas.width - p.size) p.x = canvas.width - p.size;
                     if (p.y < p.size) p.y = p.size;
                     if (p.y > canvas.height - p.size) p.y = canvas.height - p.size;
                 });
 
-                // 아늑한 모래빛/아이보리색 배경 클리어
-                ctx.fillStyle = '#f4ebd0';
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                // 피 파티클 렌더링
+                ctx.fillStyle = '#ff0000';
+                for (let i = particles.length - 1; i >= 0; i--) {
+                    let pt = particles[i];
+                    pt.x += pt.vx; pt.y += pt.vy;
+                    pt.life--;
+                    ctx.globalAlpha = pt.life / 50;
+                    ctx.beginPath(); ctx.arc(pt.x, pt.y, 3 + Math.random()*3, 0, Math.PI*2); ctx.fill();
+                    if (pt.life <= 0) particles.splice(i, 1);
+                }
+                ctx.globalAlpha = 1.0;
 
-                // 평화로운 잔디 무늬 느낌의 격자선 표현 (선택사항)
-                ctx.strokeStyle = '#e6ccb2';
-                ctx.lineWidth = 1;
-                for(let i=0; i<canvas.width; i+=80) { ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, canvas.height); ctx.stroke(); }
-                for(let j=0; j<canvas.height; j+=80) { ctx.beginPath(); ctx.moveTo(0, j); ctx.lineTo(canvas.width, j); ctx.stroke(); }
-
-                // 캐릭터 오브젝트 드로잉
+                // 플레이어 그리기
                 ['killer', 'survivor'].forEach(role => {
                     let p = entities[role];
                     
@@ -427,51 +536,71 @@
                     ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
                     ctx.fillStyle = p.color;
                     
-                    if (p.state === 'blocking') ctx.fillStyle = '#adc178'; // 방어 상태 그린우드
-                    if (p.state === 'stun') ctx.fillStyle = '#cbd5e1'; // 기절 상태 소프트그레이
-                    if (p.state === 'rage') ctx.shadowBlur = 15, ctx.shadowColor = '#6f4e37';
+                    if (p.state === 'blocking') ctx.fillStyle = '#555'; 
+                    if (p.state === 'stun' || p.state === 'disarm') ctx.fillStyle = '#333';
+                    
+                    // 살인마 격노 효과 (붉은 오라)
+                    if (p.state === 'rage') {
+                        ctx.shadowBlur = 30; ctx.shadowColor = '#ff0000';
+                        ctx.fillStyle = '#ff0000';
+                    }
                     
                     ctx.fill();
-                    ctx.shadowBlur = 0; // 그림자 초기화
-                    ctx.strokeStyle = '#fff';
+                    ctx.shadowBlur = 0;
+                    ctx.strokeStyle = '#000';
                     ctx.lineWidth = 4;
                     ctx.stroke();
 
-                    // 부드러운 파스텔톤 체력 게이지
-                    ctx.fillStyle = '#e63946';
-                    ctx.fillRect(p.x - 35, p.y - p.size - 20, 70, 8);
-                    ctx.fillStyle = '#a7c957';
-                    ctx.fillRect(p.x - 35, p.y - p.size - 20, 70 * (p.hp / p.maxHp), 8);
+                    // 하키 마스크 데코레이션 (살인마)
+                    if (role === 'killer') {
+                        ctx.fillStyle = '#ddd';
+                        ctx.beginPath(); ctx.arc(p.x - 12, p.y - 8, 4, 0, Math.PI*2); ctx.fill();
+                        ctx.beginPath(); ctx.arc(p.x + 12, p.y - 8, 4, 0, Math.PI*2); ctx.fill();
+                        ctx.beginPath(); ctx.arc(p.x, p.y + 12, 4, 0, Math.PI*2); ctx.fill();
+                    }
 
-                    // 놀이 팝업 메시지 애니메이션 연출
+                    // UI 바 (체력 & 스태미나)
+                    // HP
+                    ctx.fillStyle = '#440000';
+                    ctx.fillRect(p.x - 40, p.y - p.size - 25, 80, 6);
+                    ctx.fillStyle = '#ff0000';
+                    ctx.fillRect(p.x - 40, p.y - p.size - 25, 80 * (Math.max(0, p.hp) / p.maxHp), 6);
+                    // 스태미나
+                    ctx.fillStyle = '#113311';
+                    ctx.fillRect(p.x - 40, p.y - p.size - 15, 80, 4);
+                    ctx.fillStyle = '#00ff00';
+                    ctx.fillRect(p.x - 40, p.y - p.size - 15, 80 * (Math.max(0, p.stamina) / p.maxStamina), 4);
+
+                    // 대사 팝업
                     if (p.msgTimer > 0) {
-                        ctx.fillStyle = '#4e342e';
+                        ctx.fillStyle = (role === 'killer') ? '#ff3333' : '#ddd';
                         ctx.font = 'bold 18px sans-serif';
                         ctx.textAlign = 'center';
-                        ctx.fillText(p.msg, p.x, p.y - p.size - 32 - (50 - p.msgTimer)*0.4);
+                        ctx.fillText(p.msg, p.x, p.y - p.size - 40 - (60 - p.msgTimer)*0.5);
                         p.msgTimer--;
                     }
                 });
 
+                ctx.restore(); // 스크린 쉐이크 복구
                 requestAnimationFrame(gameLoop);
             }
 
             function endGame(result) {
                 gameActive = false;
-                document.getElementById('bgm').pause();
                 const ctx = document.getElementById('game-canvas').getContext('2d');
-                ctx.fillStyle = 'rgba(111, 78, 55, 0.75)'; // 따뜻한 갈색 반투명 오버레이
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.9)';
                 ctx.fillRect(0, 0, window.innerWidth, window.innerHeight);
                 ctx.fillStyle = 'white';
                 ctx.font = 'bold 50px sans-serif';
                 ctx.textAlign = 'center';
 
                 if (result === 'survivor_win') {
-                    ctx.fillStyle = '#f4ebd0';
-                    ctx.fillText("🐿️ 다람쥐 친구 승리! (도망치기 성공)", window.innerWidth/2, window.innerHeight/2);
+                    ctx.fillStyle = '#aaaaaa';
+                    ctx.fillText("Guest 1337 생존 성공! (73초 버팀)", window.innerWidth/2, window.innerHeight/2);
                 } else {
-                    ctx.fillStyle = '#dda15e';
-                    ctx.fillText("🐻 술래 곰돌이 승리! (모두 안아주기 성공)", window.innerWidth/2, window.innerHeight/2);
+                    ctx.fillStyle = '#ff0000';
+                    ctx.shadowBlur = 20; ctx.shadowColor = '#ff0000';
+                    ctx.fillText("Slasher 승리! (처단 완료)", window.innerWidth/2, window.innerHeight/2);
                 }
             }
         }
