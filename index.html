@@ -354,14 +354,12 @@
                     if (killer.state === 'stun') return;
 
                     if (key === 'Q') {
-                        showMsg('killer', '"그들이 기억하게끔 마드렴!"');
                         if (dist < meleeRange) {
                             applyDamage('survivor', 20);
                             surv.bleedTimer = 180; 
                         }
                     }
                     else if (key === 'E') {
-                        showMsg('killer', '"숨을 곳은 없단다."');
                         killer.state = 'slow'; setTimeout(()=> { killer.state='normal'; }, 2000);
                         if (dist < meleeRange + 30) {
                             applyDamage('survivor', 20);
@@ -369,11 +367,9 @@
                         }
                     }
                     else if (key === 'R') {
-                        showMsg('killer', '"너에게는 쉬울 거란다." (전기톱)');
                         if (dist < meleeRange + 10) applyDamage('survivor', 50);
                     }
                     else if (key === 'F') {
-                        showMsg('killer', '"저들을 죽여버리거라!"');
                         killer.state = 'rage';
                         screenShake = 20; // 포효 시 진동
                         setTimeout(()=> { if(killer.state==='rage') killer.state='normal'; }, 14000);
