@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>🍁 태인이의 술래잡기 게임 🍁</title>
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <style>
+        /* 아늑한 갈색 및 베이지 톤 글로벌 스타일 */
+        body { margin: 0; padding: 0; background-color: #f4ebd0; color: #5c4033; font-family: 'Malgun Gothic', sans-serif; overflow: hidden; user-select: none; touch-action: none; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; }
+        button { cursor: pointer; outline: none; border: none; font-weight: bold; font-family: 'Malgun Gothic', sans-serif; }
+        
+        /* 1. 호스트 화면 스타일 */
+        #host-init { text-align: center; z-index: 20; }
+        #host-init button { padding: 20px 40px; font-size: 24px; background: #8b5a2b; color: white; border-radius: 15px; transition: 0.3s; box-shadow: 0 5px 15px rgba(139,90,43,0.4); }
+        #host-init button:hover { background: #6d441f; transform: scale(1.02); }
+        
+        #host-lobby { display: none; text-align: center; z-index: 10; width: 100%; height: 100%; background: radial-gradient(circle, #e6ccb2 0%, #b08968 100%); }
+        #host-lobby h1 { margin-top: 60px; font-size: 42px; color: #4e342e; text-shadow: 1px 1px 2px rgba(255,255,255,0.6); }
+        #qr-container { background: white; padding: 15px; margin: 30px auto; display: inline-block; box-shadow: 0 10px 25px rgba(92,64,51,0.2); border-radius: 15px; }
+        .player-status { font-size: 24px; margin: 15px; color: #3e2723; }
+        .ready { color: #2e7d32; text-shadow: 0 0 5px rgba(46,125,50,0.3); }
+        .wait { color: #795548; }
+
+        #host-game { display: none; position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; background: #eddcd2; }
+        #timer-display { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); font-size: 48px; color: #4e342e; font-weight: bold; text-shadow: 0 2px 5px rgba(255,255,255,0.8); z-index: 5; }
+         Tar계-canvas { display: block; width: 100%; height: 100%; }
+
+        /* 2. 클라이언트 화면 스타일 */
+        #client-ui { display: none; width: 100%; height: 100%; flex-direction: column; }
+        
+        /* 로비 상태 */
+        #client-lobby { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #ddb892; }
+        #client-lobby h2 { font-size: 26px; margin-bottom: 30px; text-align: center; color: #4e342e; line-height: 1.5; }
+        #btn-ready { padding: 20px 50px; font-size: 24px; background: #7f5539; color: white; border-radius: 50px; transition: 0.3s; box-shadow: 0 5px 10px rgba(0,0,0,0.15); }
+        #btn-ready.active { background: #52b788; box-shadow: 0 0 20px rgba(82,183,136,0.5); }
+
+        /* 인게임 컨트롤러 */
+        #client-game { display: none; flex: 1; background: #b08968; position: relative; }
+        #joystick-area { position: absolute; bottom: 40px; left: 40px; width: 140px; height: 140px; background: rgba(255,255,255,0.25); border-radius: 50%; border: 3px solid #7f5539; }
+        #stick { width: 60px; height: 60px; background: #fff; border-radius: 50%; position: absolute; top: 40px; left: 40px; box-shadow: 0 3px 8px rgba(0,0,0,0.2); }
+        
+        #skill-area { position: absolute; bottom: 30px; right: 30px; display: grid; grid-template-columns: repeat(2, 75px); gap: 15px; }
+        .skill-btn { width: 75px; height: 75px; border-radius: 50%; background: #9c6644; color: white; font-size: 22px; box-shadow: 0 5px 10px rgba(0,0,0,0.2); position: relative; overflow: hidden; }
+        .skill-btn:active { transform: scale(0.92); }
+        .skill-btn .cooldown-overlay { position: absolute; bottom: 0; left: 0; width: 100%; height: 0%; background: rgba(0,0,0,0.5); transition: height 0.1s linear; }
+    </style>
+</head>
+<body>
+
+    <audio id="bgm" src="bgm.mp3" loop preload="auto"></audio>
+
+    <div id="host-init">
+        <h2>친구와 함께 즐기는 숨바꼭질</h2>
+        <button onclick="initHost()">아늑한 숲속 로비 만들기</button>
+    </div>
+
+    <div id="host-lobby">
+        <h1>🍁 숲속 숨바꼭질 로비 🍁</h1>
+        <p style="color:#6d441f; font-size: 18px;">스마트폰 카메라로 QR코드를 스캔해 참여하세요!</p>
+        <div id="qr-container"></div>
+        <div class="player-status">친구 1: <span id="p1-status" class="wait">오기를 기다리는 중...</span></div>
+        <div class="player-status">친구 2: <span id="p2-status" class="wait">오기를 기다리는 중...</span></div>
+    </div>
+
+    <div id="host-game">
+        <div id="timer-display">01:13</div>
+        <canvas id="game-canvas"></canvas>
+    </div>
+
+    <div id="client-ui">
+        <div id="client-lobby">
+            <h2 id="role-text">숲속 역할을 정하고 있어요...</h2>
+            <button id="btn-ready">놀이 시작 준비!</button>
+        </div>
+        <div id="client-game">
+            <div id="joystick-area"><div id="stick"></div></div>
+            <div id="skill-area">
+                <button class="skill-btn" id="btn-Q" onclick="useSkill('Q')">Q<div class="cooldown-overlay" id="cd-Q"></div></button>
+                <button class="skill-btn" id="btn-E" onclick="useSkill('E')">E<div class="cooldown-overlay" id="cd-E"></div></button>
+                <button class="skill-btn" id="btn-R" onclick="useSkill('R')">R<div class="cooldown-overlay" id="cd-R"></div></button>
+                <button class="skill-btn" id="btn-F" onclick="useSkill('F')" style="display:none;">F<div class="cooldown-overlay" id="cd-F"></div></button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        const hostIdToJoin = urlParams.get('join');
+
+        // =========================================================================
+        // 1. 클라이언트 (조이스틱 스마트폰) 로직
+        // =========================================================================
+        if (hostIdToJoin) {
+            document.getElementById('client-ui').style.display = 'flex';
+            document.getElementById('host-init').style.display = 'none';
+
+            const peer = new Peer();
+            let conn;
+            let myRole = ''; // 'killer' (술래 곰돌이) 또는 'survivor' (다람쥐 친구)
+            let isReady = false;
+
+            // 스킬 쿨타임 수치 매핑
+            const skills = {
+                killer: { Q: 1.9, E: 18.5, R: 32, F: 30 },
+                survivor: { Q: 27, E: 40, R: 60 }
+            };
+
+            peer.on('open', () => {
+                conn = peer.connect(hostIdToJoin);
+                conn.on('open', () => {
+                    conn.on('data', (data) => {
+                        if (data.type === 'assign-role') {
+                            myRole = data.role;
+                            const roleText = document.getElementById('role-text');
+                            if (myRole === 'killer') {
+                                roleText.innerHTML = "당신은 <span style='color:#5c4033'>🐻 술래 곰돌이</span> 입니다!<br>목표: 다람쥐 친구를 꽉 안아주기";
+                                document.getElementById('btn-F').style.display = 'block'; 
+                            } else {
+                                roleText.innerHTML = "당신은 <span style='color:#d97706'>🐿️ 다람쥐 친구 (게스트 1337)</span> 입니다!<br>목표: 73초 동안 장난 피하기";
+                            }
+                        } else if (data.type === 'start-game') {
+                            document.getElementById('client-lobby').style.display = 'none';
+                            document.getElementById('client-game').style.display = 'block';
+                        }
+                    });
+                });
+            });
+
+            // 준비완료 토글 버튼
+            document.getElementById('btn-ready').addEventListener('click', function() {
+                if(!conn || !conn.open) return;
+                isReady = !isReady;
+                this.classList.toggle('active');
+                this.innerText = isReady ? "준비 완료!" : "놀이 시작 준비!";
+                conn.send({ type: 'ready', state: isReady });
+            });
+
+            // 부드러운 아날로그 조이스틱 터치 연산
+            const jArea = document.getElementById('joystick-area');
+            const stick = document.getElementById('stick');
+            let isDragging = false, startX, startY;
+            const maxRadius = 40;
+
+            jArea.addEventListener('touchstart', (e) => {
+                isDragging = true;
+                const rect = jArea.getBoundingClientRect();
+                startX = rect.left + rect.width / 2;
+                startY = rect.top + rect.height / 2;
+            });
+
+            window.addEventListener('touchmove', (e) => {
+                if (!isDragging || !conn || !conn.open) return;
+                let dx = e.touches[0].clientX - startX;
+                let dy = e.touches[0].clientY - startY;
+                const dist = Math.sqrt(dx*dx + dy*dy);
+                if (dist > maxRadius) { dx = (dx/dist)*maxRadius; dy = (dy/dist)*maxRadius; }
+                stick.style.transform = `translate(${dx}px, ${dy}px)`;
+                conn.send({ type: 'move', x: dx/maxRadius, y: dy/maxRadius });
+            });
+
+            window.addEventListener('touchend', () => {
+                isDragging = false;
+                stick.style.transform = 'translate(0px, 0px)';
+                if (conn && conn.open) conn.send({ type: 'move', x: 0, y: 0 });
+            });
+
+            // 스킬 트리거 인터페이스
+            window.useSkill = function(key) {
+                if (!conn || !conn.open) return;
+                const cdOverlay = document.getElementById(`cd-${key}`);
+                if (cdOverlay.style.height === '100%') return; 
+
+                conn.send({ type: 'skill', key: key });
+
+                const cdTime = skills[myRole][key] * 1000;
+                cdOverlay.style.height = '100%';
+                cdOverlay.style.transition = 'none';
+                
+                setTimeout(() => {
+                    cdOverlay.style.transition = `height ${cdTime}ms linear`;
+                    cdOverlay.style.height = '0%';
+                }, 50);
+            };
+
+        // =========================================================================
+        // 2. 호스트 (메인 모니터/태블릿) 로직
+        // =========================================================================
+        } else {
+            let peer;
+            let p1Conn = null, p2Conn = null;
+            let p1Ready = false, p2Ready = false;
+            let isP1Killer = Math.random() < 0.5; // 반반 확률 배정
+
+            let gameActive = false;
+            let timeRemaining = 73; // 1분 13초 가을 타이머
+            
+            // 평화로운 스탯 및 테마 스킨 데이터
+            let entities = {
+                killer: { x: 0, y: 0, size: 45, color: '#6f4e37', vx: 0, vy: 0, hp: 100, maxHp: 100, speed: 5.5, state: 'normal', msg: '', msgTimer: 0 }, // 술래 곰돌이
+                survivor: { x: 0, y: 0, size: 32, color: '#e6a15c', vx: 0, vy: 0, hp: 110, maxHp: 110, speed: 5.5, state: 'normal', msg: '', msgTimer: 0 } // 다람쥐 (패시브: 최대체력 +10 반영)
+            };
+
+            window.initHost = function() {
+                const bgm = document.getElementById('bgm');
+                bgm.volume = 0.4;
+                bgm.play().then(() => { bgm.pause(); }).catch(e => console.log("CORS 걱정 없는 터치 사전 등록 성공"));
+
+                document.getElementById('host-init').style.display = 'none';
+                document.getElementById('host-lobby').style.display = 'block';
+
+                peer = new Peer();
+                peer.on('open', (id) => {
+                    let loc = window.location.href.split('?')[0];
+                    if (loc.includes('localhost') || loc.includes('127.0.0.1')) {
+                        const ip = prompt("친구가 폰으로 접속할 수 있게 PC의 내부 IP를 적어주세요. (예: 192.168.0.x)", "192.168.");
+                        if (ip) loc = loc.replace(/localhost|127\.0\.0\.1/, ip);
+                    }
+                    // 따뜻한 브라운 색상의 QR코드 생성
+                    new QRCode(document.getElementById("qr-container"), { text: `${loc}?join=${id}`, width: 250, height: 250, colorDark : "#5c4033" });
+                });
+
+                peer.on('connection', (conn) => {
+                    let playerSlot = null;
+                    conn.on('open', () => {
+                        if (!p1Conn) {
+                            p1Conn = conn; playerSlot = 'p1';
+                            document.getElementById('p1-status').innerText = "들어옴! (준비 대기 중)";
+                            conn.send({ type: 'assign-role', role: isP1Killer ? 'killer' : 'survivor' });
+                        } else if (!p2Conn) {
+                            p2Conn = conn; playerSlot = 'p2';
+                            document.getElementById('p2-status').innerText = "들어옴! (준비 대기 중)";
+                            conn.send({ type: 'assign-role', role: !isP1Killer ? 'killer' : 'survivor' });
+                        }
+                    });
+
+                    conn.on('data', (data) => {
+                        let role = (playerSlot === 'p1' && isP1Killer) || (playerSlot === 'p2' && !isP1Killer) ? 'killer' : 'survivor';
+                        let target = entities[role];
+
+                        if (data.type === 'ready') {
+                            if (playerSlot === 'p1') p1Ready = data.state;
+                            if (playerSlot === 'p2') p2Ready = data.state;
+                            document.getElementById(`${playerSlot}-status`).className = data.state ? 'ready' : 'wait';
+                            document.getElementById(`${playerSlot}-status`).innerText = data.state ? "놀 준비 완료! ✨" : "들어옴! (준비 대기 중)";
+                            
+                            if (p1Ready && p2Ready && !gameActive) startMatch();
+                        }
+                        
+                        if (!gameActive) return;
+
+                        if (data.type === 'move') {
+                            if (target.state === 'stun' || target.state === 'disarm') return;
+                            
+                            let modifier = 1;
+                            if (target.state === 'slow') modifier = 0.5; // 느림 1 디버프
+                            if (role === 'killer' && target.state === 'rage') modifier = 19 / 5.5; // 기본 속도 19 고정 상향 조정
+                            if (role === 'survivor' && target.state === 'blocking') modifier = 0.5; // 방어 중 50% 감속
+
+                            target.vx = data.x * target.speed * modifier;
+                            target.vy = data.y * target.speed * modifier;
+                        }
+
+                        if (data.type === 'skill') {
+                            handleCombat(role, data.key);
+                        }
+                    });
+                });
+            };
+
+            function showMsg(role, text) {
+                entities[role].msg = text;
+                entities[role].msgTimer = 50; 
+            }
+
+            function getDist(p1, p2) {
+                return Math.hypot(p1.x - p2.x, p1.y - p2.y);
+            }
+
+            // 평화로운 놀이 스킬 매커니즘 처리 함수
+            function handleCombat(role, key) {
+                const killer = entities.killer;
+                const surv = entities.survivor;
+                const dist = getDist(killer, surv);
+                const playRange = 95;
+
+                if (role === 'killer') {
+                    if (killer.state === 'stun') return;
+
+                    if (key === 'Q') {
+                        // 휘두르기 -> 안아주기 | Hug
+                        showMsg('killer', "포근하게 안아주기! 🤗");
+                        // 피격 시 20 점수 차감(데미지) 및 출혈(따뜻함 중첩) 디버프 매칭
+                        if (dist < playRange) applyDamage('survivor', 20);
+                    }
+                    else if (key === 'E') {
+                        // 참수 -> 낙엽 날리기 | Leaf Blast
+                        showMsg('killer', "낙엽 날리기! 🍂");
+                        killer.state = 'slow'; setTimeout(()=> { killer.state='normal'; }, 2000); // 슬래셔 느림 1 2초
+                        if (dist < playRange) {
+                            applyDamage('survivor', 20); // 20 피해량
+                            surv.state = 'disarm'; setTimeout(()=> { surv.state='normal'; }, 8000); // 무력함 1 디버프 8초
+                        }
+                    }
+                    else if (key === 'R') {
+                        // 갈라진 상처 -> 도토리 뭉치 투척 | Acorn Shower
+                        showMsg('killer', "도토리 와르르! 🌰");
+                        if (dist < playRange) applyDamage('survivor', 50); // 총 50의 피해량
+                    }
+                    else if (key === 'F') {
+                        // 격노한 발걸음 -> 신나는 발걸음 | Raging Pace
+                        showMsg('killer', "콧노래 부르며 달리기! 🎵");
+                        killer.state = 'rage';
+                        setTimeout(()=> { if(killer.state==='rage') killer.state='normal'; }, 14000); // 14초 동안 지속
+                    }
+                } 
+                else if (role === 'survivor') {
+                    if (surv.state === 'stun' || surv.state === 'disarm') return;
+
+                    if (key === 'Q') {
+                        // 방어 -> 웅크리기 | Crouch
+                        showMsg('survivor', "도토리 껍질 속으로! 껍질 방어!");
+                        surv.state = 'blocking';
+                        setTimeout(()=> { if(surv.state==='blocking') surv.state='normal'; }, 2000); // 2초 유지
+                    }
+                    else if (key === 'E') {
+                        // 돌진 -> 요리조리 대시 | Sprint
+                        showMsg('survivor', "호다닥 돌진! 💨");
+                        surv.x += surv.vx * 12; surv.y += surv.vy * 12;
+                        if (getDist(killer, surv) < playRange) {
+                            applyDamage('killer', 5); // 5의 미미한 밀치기 충격
+                            killer.x += surv.vx * 8; killer.y += surv.vy * 8; // 밀쳐짐
+                        } else {
+                            surv.state = 'slow'; setTimeout(()=> { surv.state='normal'; }, 2000); // 벽꽝/실패 시 느림 2 디버프
+                        }
+                    }
+                    else if (key === 'R') {
+                        // 펀치 -> 반짝이 딱밤 | Punch
+                        showMsg('survivor', "말랑 펀치! 🐾");
+                        if (dist < playRange) {
+                            killer.state = 'stun'; setTimeout(()=> { killer.state='normal'; }, 2000); // 2초 기절
+                        }
+                    }
+                }
+            }
+
+            function applyDamage(targetRole, amount) {
+                const target = entities[targetRole];
+                
+                // 생존자 웅크리기(방어) 성공 판정
+                if (targetRole === 'survivor' && target.state === 'blocking') {
+                    showMsg('survivor', "방어 성공! 체력 +10 🌰");
+                    target.maxHp += 10;
+                    target.hp += 10;
+                    target.state = 'normal';
+                    return; 
+                }
+
+                target.hp -= amount;
+                if (entities.survivor.hp <= 0) endGame('killer_win');
+                if (entities.killer.hp <= 0) endGame('survivor_win');
+            }
+
+            function startMatch() {
+                gameActive = true;
+                document.getElementById('host-lobby').style.display = 'none';
+                document.getElementById('host-game').style.display = 'block';
+                
+                if(p1Conn) p1Conn.send({ type: 'start-game' });
+                if(p2Conn) p2Conn.send({ type: 'start-game' });
+
+                // 브라우저 내부 오디오 구동
+                const bgm = document.getElementById('bgm');
+                bgm.currentTime = 0;
+                bgm.play();
+
+                const canvas = document.getElementById('game-canvas');
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight;
+                
+                entities.killer.x = canvas.width * 0.25; entities.killer.y = canvas.height / 2;
+                entities.survivor.x = canvas.width * 0.75; entities.survivor.y = canvas.height / 2;
+
+                const timerInterval = setInterval(() => {
+                    if (!gameActive) { clearInterval(timerInterval); return; }
+                    timeRemaining--;
+                    let mins = String(Math.floor(timeRemaining / 60)).padStart(2, '0');
+                    let secs = String(timeRemaining % 60).padStart(2, '0');
+                    document.getElementById('timer-display').innerText = `${mins}:${secs}`;
+                    
+                    if (timeRemaining <= 0) endGame('survivor_win');
+                }, 1000);
+
+                gameLoop();
+            }
+
+            function gameLoop() {
+                if (!gameActive) return;
+                const canvas = document.getElementById('game-canvas');
+                const ctx = canvas.getContext('2d');
+
+                ['killer', 'survivor'].forEach(role => {
+                    let p = entities[role];
+                    p.x += p.vx; p.y += p.vy;
+                    if (p.x < p.size) p.x = p.size;
+                    if (p.x > canvas.width - p.size) p.x = canvas.width - p.size;
+                    if (p.y < p.size) p.y = p.size;
+                    if (p.y > canvas.height - p.size) p.y = canvas.height - p.size;
+                });
+
+                // 아늑한 모래빛/아이보리색 배경 클리어
+                ctx.fillStyle = '#f4ebd0';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                // 평화로운 잔디 무늬 느낌의 격자선 표현 (선택사항)
+                ctx.strokeStyle = '#e6ccb2';
+                ctx.lineWidth = 1;
+                for(let i=0; i<canvas.width; i+=80) { ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, canvas.height); ctx.stroke(); }
+                for(let j=0; j<canvas.height; j+=80) { ctx.beginPath(); ctx.moveTo(0, j); ctx.lineTo(canvas.width, j); ctx.stroke(); }
+
+                // 캐릭터 오브젝트 드로잉
+                ['killer', 'survivor'].forEach(role => {
+                    let p = entities[role];
+                    
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                    ctx.fillStyle = p.color;
+                    
+                    if (p.state === 'blocking') ctx.fillStyle = '#adc178'; // 방어 상태 그린우드
+                    if (p.state === 'stun') ctx.fillStyle = '#cbd5e1'; // 기절 상태 소프트그레이
+                    if (p.state === 'rage') ctx.shadowBlur = 15, ctx.shadowColor = '#6f4e37';
+                    
+                    ctx.fill();
+                    ctx.shadowBlur = 0; // 그림자 초기화
+                    ctx.strokeStyle = '#fff';
+                    ctx.lineWidth = 4;
+                    ctx.stroke();
+
+                    // 부드러운 파스텔톤 체력 게이지
+                    ctx.fillStyle = '#e63946';
+                    ctx.fillRect(p.x - 35, p.y - p.size - 20, 70, 8);
+                    ctx.fillStyle = '#a7c957';
+                    ctx.fillRect(p.x - 35, p.y - p.size - 20, 70 * (p.hp / p.maxHp), 8);
+
+                    // 놀이 팝업 메시지 애니메이션 연출
+                    if (p.msgTimer > 0) {
+                        ctx.fillStyle = '#4e342e';
+                        ctx.font = 'bold 18px sans-serif';
+                        ctx.textAlign = 'center';
+                        ctx.fillText(p.msg, p.x, p.y - p.size - 32 - (50 - p.msgTimer)*0.4);
+                        p.msgTimer--;
+                    }
+                });
+
+                requestAnimationFrame(gameLoop);
+            }
+
+            function endGame(result) {
+                gameActive = false;
+                document.getElementById('bgm').pause();
+                const ctx = document.getElementById('game-canvas').getContext('2d');
+                ctx.fillStyle = 'rgba(111, 78, 55, 0.75)'; // 따뜻한 갈색 반투명 오버레이
+                ctx.fillRect(0, 0, window.innerWidth, window.innerHeight);
+                ctx.fillStyle = 'white';
+                ctx.font = 'bold 50px sans-serif';
+                ctx.textAlign = 'center';
+
+                if (result === 'survivor_win') {
+                    ctx.fillStyle = '#f4ebd0';
+                    ctx.fillText("🐿️ 다람쥐 친구 승리! (도망치기 성공)", window.innerWidth/2, window.innerHeight/2);
+                } else {
+                    ctx.fillStyle = '#dda15e';
+                    ctx.fillText("🐻 술래 곰돌이 승리! (모두 안아주기 성공)", window.innerWidth/2, window.innerHeight/2);
+                }
+            }
+        }
+    </script>
+</body>
+</html>
